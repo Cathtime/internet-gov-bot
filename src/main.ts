@@ -3,6 +3,8 @@ import { Client, Collection, Events, GatewayIntentBits, MessageFlags } from 'dis
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileNavig } from './misc/fileNavig.ts';
+import type { IFolderContents } from './interfaces/IFolderContent.ts';
 
 const client = new Client({
     intents: [GatewayIntentBits.Guilds]
@@ -16,22 +18,23 @@ client.once('clientReady', () => {
 
 client.commands = new Collection;
 
-const foldersPath = path.join(import.meta.dirname, 'commands');
-const commandFolders = fs.readdirSync(foldersPath);
-for (const folder of commandFolders) {
-	const commandsPath = path.join(foldersPath, folder);
-	const commandFiles = fs.readdirSync(commandsPath).filter((file) => file.endsWith('.ts'));
-	for (const file of commandFiles) {
-		const filePath = path.join(commandsPath, file);
-		const commandImport = await import(filePath);
-        const command = commandImport.default;
-		// Set a new item in the Collection with the key as the command name and the value as the exported module
-		if ('data' in command && 'execute' in command) {
-			client.commands.set(command.data.name, command);
-		} else {
-			console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
-		}
-	}
+const commandPath = 'commands';
+
+const contents : IFolderContents[] = await fileNavig.getFolderContents(commandPath, '.ts');
+
+for (const { folderPath, folderImport } of contents) {
+    
+    const command = folderImport.default || folderImport;
+
+    if ('data' in command && 'execute' in command) {
+        client.commands.set(command.data.name, command);
+    } else {
+        console.log(`[WARNING] The command at ${folderPath} is missing a required "data" or "execute" property.`);
+        
+        for (const property in command) {
+            console.log(`${folderPath} has property: ${property}`);
+        }
+    }
 }
 
 client.on(Events.InteractionCreate, async (interaction) => {

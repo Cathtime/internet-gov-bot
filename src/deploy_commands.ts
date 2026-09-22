@@ -1,33 +1,27 @@
 import { REST, Routes } from 'discord.js';
 import 'dotenv/config';
-import fs from 'node:fs';
-import path from 'node:path';
+import { fileNavig } from './misc/fileNavig.ts';
+import type { IFolderContents } from './interfaces/IFolderContent.ts';
 
 const commands = [];
-// Grab all the command folders from the commands directory you created earlier
-const foldersPath = path.join(import.meta.dirname, 'commands');
-const commandFolders = fs.readdirSync(foldersPath);
 
-for (const folder of commandFolders) {
-	// Grab all the command files from the commands directory you created earlier
-	const commandsPath = path.join(foldersPath, folder);
-	const commandFiles = fs.readdirSync(commandsPath).filter((file: any) => file.endsWith('.ts'));
-	// Grab the SlashCommandBuilder#toJSON() output of each command's data for deployment
-	for (const file of commandFiles) {
-		const filePath = path.join(commandsPath, file);
-		const commandImport = await import(filePath);
-        const command = commandImport.default; // when exporting I guess I have to check default
+const commandPath = 'commands';
 
-		if ('data' in command && 'execute' in command) {
-            commands.push(command.data.toJSON());
-		} else {
-			console.log(`[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`);
+const contents : IFolderContents[] = await fileNavig.getFolderContents(commandPath, '.ts');
 
-            for (const properties in command.default) {
-                console.log(`${filePath} has ${properties}`);
-            }
-		}
-	}
+for (const { folderPath, folderImport } of contents) {
+    
+    const command = folderImport.default || folderImport;
+
+    if ('data' in command && 'execute' in command) {
+        commands.push(command.data.toJSON());
+    } else {
+        console.log(`[WARNING] The command at ${folderPath} is missing a required "data" or "execute" property.`);
+        
+        for (const property in command) {
+            console.log(`${folderPath} has property: ${property}`);
+        }
+    }
 }
 
 const token: string = process.env.DiscordToken ?? '';
